@@ -1,4 +1,6 @@
+#if defined ( ESMF_ )
 #include "MAPL_Generic.h"
+#endif
 !------------------------------------------------------------------------------
 !          Harvard University Atmospheric Chemistry Modeling Group            !
 !------------------------------------------------------------------------------
@@ -15,9 +17,11 @@
 MODULE GIGC_Chunk_Mod
 !
 ! !USES:
-!      
+!
+#if defined ( ESMF_ )
   USE MAPL_MOD
   USE ESMF
+#endif
   USE ErrCode_Mod
 
   IMPLICIT NONE
@@ -39,9 +43,15 @@ MODULE GIGC_Chunk_Mod
 !  15 Mar 2013 - R. Yantosca - Add routine GIGC_Cap_Tropopause_Prs
 !  08 Mar 2018 - E. Lundgren - Move gigc_initialization_mod contents to 
 !                              gigc_chunk_init now that LOC is much reduced
+!  15 Aug 2018 - H.P. Lin    - Enclose ESMF/MAPL code in ESMF pre-processor flags
+!                              so GC_CHUNK_MOD can be used by WRF & BCC couplers
 !EOP
 !------------------------------------------------------------------------------
 !BOC
+
+#if !defined( ESMF_ )
+  INTEGER, PARAMETER :: KIND_R4 = selected_real_kind(3, 25)
+#endif
 
 CONTAINS
 !EOC
@@ -59,6 +69,19 @@ CONTAINS
 !\\
 ! !INTERFACE:
 !
+#if defined ( ESMF_ )
+  SUBROUTINE GIGC_Chunk_Init( am_I_Root,  value_I_LO,    value_J_LO,     &
+                              value_I_HI, value_J_HI,    value_IM,       &
+                              value_JM,   value_LM,      value_IM_WORLD, &
+                              value_JM_WORLD,            value_LM_WORLD, &
+                              nymdB,      nhmsB,         nymdE,          &
+                              nhmsE,      tsChem,        tsDyn,          &
+                              lonCtr,     latCtr,        myPET,          &
+                              GC,         EXPORT,                        &
+                              Input_Opt,                                 &
+                              State_Chm,  State_Diag,    State_Met,      &
+                              HcoConfig,  HistoryConfig, RC      )
+#else
   SUBROUTINE GIGC_Chunk_Init( am_I_Root,  value_I_LO,    value_J_LO,     & 
                               value_I_HI, value_J_HI,    value_IM,       &
                               value_JM,   value_LM,      value_IM_WORLD, &
@@ -66,16 +89,19 @@ CONTAINS
                               nymdB,      nhmsB,         nymdE,          &
                               nhmsE,      tsChem,        tsDyn,          &
                               lonCtr,     latCtr,        myPET,          &
-                              GC,         EXPORT,        Input_Opt,      &
+                              Input_Opt,                                 &
                               State_Chm,  State_Diag,    State_Met,      &
                               HcoConfig,  HistoryConfig, RC      )
+#endif
 !
 ! !USES:
 !
     USE Chemistry_Mod,           ONLY : Init_Chemistry
     USE CMN_Size_Mod,            ONLY : IIPAR, JJPAR, LLPAR, dLon, dLat
     USE Emissions_Mod,           ONLY : Emissions_Init
+#if defined ( ESMF_ )
     USE ESMF,                    ONLY : ESMF_KIND_R4
+#endif
     USE Fast_JX_Mod,             ONLY : Init_FJX
     USE GC_Environment_Mod
     USE GC_Grid_Mod,             ONLY : SetGridFromCtr
@@ -118,13 +144,20 @@ CONTAINS
     INTEGER,            INTENT(IN)    :: nhmsE       ! hhmmss   @ end of run
     REAL,               INTENT(IN)    :: tsChem      ! Chemistry timestep [s]
     REAL,               INTENT(IN)    :: tsDyn       ! Chemistry timestep [s]
+#if defined( ESMF_ )
     REAL(ESMF_KIND_R4), INTENT(IN)    :: lonCtr(:,:) ! Lon centers [radians]
     REAL(ESMF_KIND_R4), INTENT(IN)    :: latCtr(:,:) ! Lat centers [radians]
+#else
+    REAL(KIND_R4), INTENT(IN)         :: lonCtr(:,:) ! Lon centers [radians]
+    REAL(KIND_R4), INTENT(IN)         :: latCtr(:,:) ! Lat centers [radians]
+#endif
 !
 ! !INPUT/OUTPUT PARAMETERS:
 !
+#if defined( ESMF_ )
     TYPE(ESMF_State), INTENT(INOUT), TARGET :: EXPORT ! Export state object
     TYPE(ESMF_GridComp), INTENT(INOUT) :: GC          ! Ref to this GridComp
+#endif
     TYPE(OptInput),      INTENT(INOUT) :: Input_Opt   ! Input Options object
     TYPE(ChmState),      INTENT(INOUT) :: State_Chm   ! Chemistry State object
     TYPE(DgnState),      INTENT(INOUT) :: State_Diag  ! Diagnostics State object
@@ -178,7 +211,11 @@ CONTAINS
 ! !LOCAL VARIABLES:
 !
     INTEGER                        :: I, J, L, STATUS
+#if defined ( ESMF_ )
     CHARACTER(LEN=ESMF_MAXSTR)     :: Iam
+#else
+    CHARACTER(LEN=255)             :: Iam
+#endif
 
     !=======================================================================
     ! GIGC_CHUNK_INIT begins here 
@@ -192,7 +229,9 @@ CONTAINS
 
     ! Initialize Input_Opt fields to zeros or equivalent
     CALL Set_Input_Opt( am_I_Root, Input_Opt, RC )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! Update Input_Opt with timing fields
     Input_Opt%NYMDb   = nymdB
@@ -210,7 +249,9 @@ CONTAINS
 
        ! Read input.geos
        CALL Read_Input_File( am_I_Root, Input_Opt, RC )
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
+#endif
 
        ! In the ESMF/MPI environment, we can get the total overhead ozone
        ! either from the met fields (GIGCsa) or from the Import State (GEOS-5)
@@ -219,13 +260,17 @@ CONTAINS
        ! Read LINOZ climatology
        IF ( Input_Opt%LLINOZ ) THEN
           CALL Linoz_Read( am_I_Root, Input_Opt, RC ) 
+#if defined ( ESMF_ )
           ASSERT_(RC==GC_SUCCESS)
+#endif
        ENDIF
     ENDIF
 
     ! Broadcast Input_Opt from root to all other CPUs
     CALL GIGC_Input_Bcast( am_I_Root, Input_Opt, RC )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! Allocate all lat/lon arrays including CMN_Size_Mod parameters
     CALL GC_Allocate_All( am_I_Root, Input_Opt, RC,         &  
@@ -238,8 +283,10 @@ CONTAINS
                           value_LM       = value_LM,        &
                           value_IM_WORLD = value_IM_WORLD,  &
                           value_JM_WORLD = value_JM_WORLD,  &  
-                          value_LM_WORLD = value_LM_WORLD  )            
+                          value_LM_WORLD = value_LM_WORLD  )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! ewl TODO: Is this calculation of dlon/dlat needed for GCHP or GEOS-5?
     !========================================================================
@@ -278,12 +325,16 @@ CONTAINS
 
     ! Initialize horizontal grid parameters
     CALL GC_Init_Grid( am_I_Root, Input_Opt, RC )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! Set grid based on passed mid-points
     CALL SetGridFromCtr( am_I_Root, value_IM,    value_JM, &
                          lonCtr,    latCtr,      RC      )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! Set timesteps
     CALL Set_Timesteps( am_I_Root  = am_I_Root,                          &
@@ -299,18 +350,24 @@ CONTAINS
     ! Initialize derived-type objects for met, chem, and diag
     CALL GC_Init_StateObj( am_I_Root, HistoryConfig%DiagList, Input_Opt, &
                            State_Chm, State_Diag, State_Met, RC )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! Initialize other GEOS-Chem modules
     CALL GC_Init_Extra( am_I_Root, HistoryConfig%DiagList, Input_Opt,    &
                         State_Chm, State_Diag, RC ) 
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! Initialize photolysis
     IF ( Input_Opt%ITS_A_FULLCHEM_SIM .OR.                     &
          Input_Opt%ITS_AN_AEROSOL_SIM ) THEN
        CALL Init_FJX( am_I_Root, Input_Opt, State_Chm, State_Diag, RC ) 
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
+#endif
     ENDIF
       
     ! Set State_Chm units
@@ -321,18 +378,24 @@ CONTAINS
 
     ! Initialize PBL mixing module
     CALL Init_PBL_Mix( am_I_Root, RC )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
     
     ! Initialize chemistry mechanism
     IF ( Input_Opt%ITS_A_FULLCHEM_SIM .OR. Input_Opt%ITS_AN_AEROSOL_SIM ) THEN
        CALL Init_Chemistry( am_I_Root, Input_Opt, State_Chm, State_Diag, RC )
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
+#endif
     ENDIF
 
     ! Initialize HEMCO
     CALL EMISSIONS_INIT ( am_I_Root, Input_Opt, State_Met, State_Chm, RC, &
                           HcoConfig=HcoConfig )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! Stratosphere - can't be initialized without HEMCO because of STATE_PSC
     IF ( Input_Opt%LUCX ) THEN
@@ -367,7 +430,9 @@ CONTAINS
     ! Convert species units to internal state units (v/v dry)
     CALL Convert_Spc_Units( am_I_Root, Input_Opt, State_Met, &
                             State_Chm, 'v/v dry', RC )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     ! Return success
     RC = GC_Success
@@ -386,12 +451,22 @@ CONTAINS
 !
 ! !INTERFACE:
 !
+
+#if defined ( ESMF_ )
   SUBROUTINE GIGC_Chunk_Run( am_I_Root,  GC, IM,    JM,         LM,         &
                              nymd,       nhms,      year,       month,      &
                              day,        dayOfYr,   hour,       minute,     &
                              second,     utc,       hElapsed,   Input_Opt,  &
                              State_Chm,  State_Met, State_Diag, Phase,      &
                              IsChemTime, RC         )
+#else
+  SUBROUTINE GIGC_Chunk_Run( am_I_Root,  IM,        JM,         LM,         &
+                             nymd,       nhms,      year,       month,      &
+                             day,        dayOfYr,   hour,       minute,     &
+                             second,     utc,       hElapsed,   Input_Opt,  &
+                             State_Chm,  State_Met, State_Diag, Phase,      &
+                             IsChemTime, RC         )
+#endif
 !
 ! !USES:
 !
@@ -457,7 +532,9 @@ CONTAINS
 !
 ! !INPUT/OUTPUT PARAMETERS:
 !
+#if defined ( ESMF_ )
     TYPE(ESMF_GridComp), INTENT(INOUT) :: GC          ! Ref to this GridComp
+#endif
     TYPE(OptInput),      INTENT(INOUT) :: Input_Opt   ! Input Options obj
     TYPE(ChmState),      INTENT(INOUT) :: State_Chm   ! Chemistry State obj
     TYPE(MetState),      INTENT(INOUT) :: State_Met   ! Meteorology State obj
@@ -509,9 +586,15 @@ CONTAINS
 !EOP
 !------------------------------------------------------------------------------
 !BOC
+#if defined ( ESMF_ )
     TYPE(MAPL_MetaComp), POINTER   :: STATE    
+#endif
     REAL*8                         :: DT
+#if defined ( ESMF_ )
     CHARACTER(LEN=ESMF_MAXSTR)     :: Iam, OrigUnit
+#else
+    CHARACTER(LEN=255)             :: Iam, OrigUnit
+#endif
     INTEGER                        :: STATUS
 
     ! Local logicals to turn on/off individual components
@@ -543,8 +626,10 @@ CONTAINS
     ! Assume success
     RC = GC_SUCCESS
 
+#if defined ( ESMF_ )
     ! Get state object (needed for timers)
     CALL MAPL_GetObjectFromGC(GC, STATE, __RC__)
+#endif
 
     ! Populate grid box areas from gc_grid_mod.F on first call. We have to do 
     ! this in the run phase and not in initialize because it seems like the
@@ -749,14 +834,18 @@ CONTAINS
     !=======================================================================
     IF ( DoConv ) THEN
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Do convection now' 
+#if defined ( ESMF_ )
        CALL MAPL_TimerOn( STATE, 'GC_CONV' )
+#endif
 
        ! Do convection
        CALL DO_CONVECTION ( am_I_Root, Input_Opt, State_Met, State_Chm, &
                             State_Diag, RC )
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
  
        CALL MAPL_TimerOff( STATE, 'GC_CONV' )
+#endif
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Convection done!'
     ENDIF  
 
@@ -770,14 +859,18 @@ CONTAINS
           write(*,*) ' --- Do drydep now'
           write(*,*) '     Use FULL PBL: ', Input_Opt%PBL_DRYDEP
        endif
+#if defined ( ESMF_ )
        CALL MAPL_TimerOn( STATE, 'GC_DRYDEP' )
+#endif
 
        ! Do dry deposition
        CALL Do_DryDep( am_I_Root, Input_Opt=Input_Opt, State_Chm=State_Chm, &
                        State_Met=State_Met, State_Diag=State_Diag, RC=RC ) 
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
 
        CALL MAPL_TimerOff( STATE, 'GC_DRYDEP' )
+#endif
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Drydep done!'
     ENDIF
 
@@ -789,14 +882,18 @@ CONTAINS
     !=======================================================================
     IF ( DoEmis ) THEN
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Do emissions now'
+#if defined ( ESMF_ )
        CALL MAPL_TimerOn( STATE, 'GC_EMIS' )
+#endif
 
        ! Do emissions
        CALL EMISSIONS_RUN ( am_I_Root, Input_Opt, State_Met, State_Chm, &
                             DoEmis, Phase, RC )
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
 
        CALL MAPL_TimerOff( STATE, 'GC_EMIS' )
+#endif
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Emissions done!'
     ENDIF
 
@@ -813,18 +910,22 @@ CONTAINS
     IF ( DoTend ) THEN 
        if(am_I_Root.and.NCALLS<10) write(*,*)   &
                            ' --- Add emissions and drydep to tracers'
+#if defined ( ESMF_ )
        CALL MAPL_TimerOn( STATE, 'GC_FLUXES' )
  
        ! Get emission time step [s]. 
        ASSERT_(ASSOCIATED(HcoState))
+#endif
        DT = HcoState%TS_EMIS 
 
        ! Apply tendencies over entire PBL using emission time step.
        CALL DO_TEND ( am_I_Root, Input_Opt, State_Met, State_Chm,  &
                       State_Diag, .FALSE., RC, DT=DT )
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
 
        CALL MAPL_TimerOff( STATE, 'GC_FLUXES' )
+#endif
        if(am_I_Root.and.NCALLS<10) write(*,*)   &
                                  ' --- Fluxes applied to tracers!' 
     ENDIF ! Tendencies 
@@ -845,15 +946,19 @@ CONTAINS
     !=======================================================================
     IF ( DoTurb ) THEN
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Do turbulence now'
+#if defined ( ESMF_ )
        CALL MAPL_TimerOn( STATE, 'GC_TURB' )
+#endif
 
        ! Do mixing and apply tendencies. This will use the dynamic time step,
        ! which is fine since this call will be executed on every time step. 
        CALL DO_MIXING ( am_I_Root, Input_Opt, State_Met, State_Chm, &
                         State_Diag, RC )
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
 
        CALL MAPL_TimerOff( STATE, 'GC_TURB' )
+#endif
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Turbulence done!'
     ENDIF
 
@@ -869,7 +974,9 @@ CONTAINS
     !=======================================================================
     IF ( DoChem ) THEN
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Do chemistry now'
+#if defined ( ESMF_ )
        CALL MAPL_TimerOn( STATE, 'GC_CHEM' )
+#endif
 
        ! Calculate TOMS O3 overhead. For now, always use it from the
        ! Met field. State_Met%TO3 is imported from PCHEM (ckeller, 10/21/2014).
@@ -888,9 +995,11 @@ CONTAINS
                           State_Met  = State_Met,            & ! Met State
                           State_Diag = State_Diag,           & ! Diagn State
                           RC         = RC                   )  ! Success?
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
 
        CALL MAPL_TimerOff( STATE, 'GC_CHEM' )
+#endif
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Chemistry done!'
     ENDIF
 
@@ -899,14 +1008,18 @@ CONTAINS
     !=======================================================================
     IF ( DoWetDep ) THEN
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Do wetdep now'
+#if defined ( ESMF_ )
        CALL MAPL_TimerOn( STATE, 'GC_WETDEP' )
+#endif
 
        ! Do wet deposition
        CALL DO_WETDEP( am_I_Root, Input_Opt, State_Met, State_Chm,  &
                        State_Diag, RC )
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
 
        CALL MAPL_TimerOff( STATE, 'GC_WETDEP' )
+#endif
        if(am_I_Root.and.NCALLS<10) write(*,*) ' --- Wetdep done!'
     ENDIF
 
@@ -920,14 +1033,18 @@ CONTAINS
        ! diagnostic.
        CALL Recompute_OD( am_I_Root, Input_Opt,  State_Met,  &
                           State_Chm, State_Diag, RC         )
+#if defined ( ESMF_ )
        ASSERT_(RC==GC_SUCCESS)
+#endif
     ENDIF
     ! Set certain diagnostics dependent on state at end of step. This
     ! includes species concentration and dry deposition flux.
     CALL Set_Diagnostics_EndofTimestep( am_I_Root,  Input_Opt, &
                                         State_Met,  State_Chm, &
                                         State_Diag, RC )
+#if defined ( ESMF_ )
     ASSERT_(RC==GC_SUCCESS)
+#endif
 
     !=======================================================================
     ! Clean up

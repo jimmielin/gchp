@@ -1,4 +1,4 @@
-! 
+#if defined ( ESMF_ )
 
 ! *********************************************************************
 ! *****                      Main Program                          ****
@@ -51,3 +51,4 @@ Program GIGC_Main
  end Program GIGC_Main
 
 !EOC
+#endif

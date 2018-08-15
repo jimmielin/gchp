@@ -1,4 +1,6 @@
+#if defined ( ESMF_ )
 #include "MAPL_Generic.h"
+#endif
 !------------------------------------------------------------------------------
 !          Harvard University Atmospheric Chemistry Modeling Group            !
 !------------------------------------------------------------------------------
@@ -33,6 +35,7 @@ MODULE GIGC_Mpi_Wrap
 !  03 Jan 2013 - M. Long     - Initial version
 !  07 Mar 2013 - R. Yantosca - Added more ProTeX headers + comments
 !  19 Sep 2017 - E. Lundgren - Remove unused or empty subroutines
+!  15 Aug 2018 - H.P. Lin    - Enclose ESMF code & provide a non-MAPL alternative
 !EOP
 !------------------------------------------------------------------------------
 !BOC
@@ -60,9 +63,13 @@ CONTAINS
 !
     USE Input_Opt_Mod,       ONLY : OptInput, Set_Input_Opt_Passive
     USE ErrCode_Mod,         ONLY : GC_SUCCESS
+#if defined ( ESMF_ )
     USE ESMF,                ONLY : ESMF_MAXSTR
     USE MAPL_MOD
     USE M_MPIF
+#else
+    USE mpi
+#endif
 !
 ! !INPUT PARAMETERS:
 !
@@ -109,7 +116,11 @@ CONTAINS
 ! !LOCAL VARIABLES:
 !
     INTEGER :: COUNT, STATUS
+#if defined ( ESMF_ )
     CHARACTER(LEN=ESMF_MAXSTR)     :: Iam
+#else
+    CHARACTER(LEN=255)             :: Iam
+#endif
 
     ! Error handling
     Iam = 'GIGC_Input_Bcast (gigc_mpi_mod.F90)'
